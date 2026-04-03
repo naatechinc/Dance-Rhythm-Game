@@ -1,0 +1,29 @@
+[
+  {
+    "videoId": "dQw4w9WgXcQ",
+    "title": "Never Gonna Give You Up",
+    "artist": "Rick Astley",
+    "durationSec": 214,
+    "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg",
+    "source": "youtube",
+    "language": "en"
+  },
+  {
+    "videoId": "kJQP7kiw5Fk",
+    "title": "Despacito",
+    "artist": "Luis Fonsi ft. Daddy Yankee",
+    "durationSec": 282,
+    "thumbnail": "https://i.ytimg.com/vi/kJQP7kiw5Fk/mqdefault.jpg",
+    "source": "youtube",
+    "language": "es"
+  },
+  {
+    "videoId": "09R8_2nJtjg",
+    "title": "Sugar",
+    "artist": "Maroon 5",
+    "durationSec": 235,
+    "thumbnail": "https://i.ytimg.com/vi/09R8_2nJtjg/mqdefault.jpg",
+    "source": "youtube",
+    "language": "en"
+  }
+]

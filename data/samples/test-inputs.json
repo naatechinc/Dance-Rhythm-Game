@@ -1,0 +1,16 @@
+{
+  "_description": "Simulated input stream for the dQw4w9WgXcQ choreography. Used in scoring regression tests.",
+  "trackId": "dQw4w9WgXcQ",
+  "inputs": [
+    { "inputTimeSec": 31.25, "moveType": "step_left",  "expectedResult": "perfect" },
+    { "inputTimeSec": 33.18, "moveType": "arm_cross",  "expectedResult": "good"    },
+    { "inputTimeSec": 35.10, "moveType": "step_right", "expectedResult": "okay"    },
+    { "inputTimeSec": 36.60, "moveType": "clap",       "expectedResult": "perfect" },
+    { "inputTimeSec": 38.95, "moveType": "bounce",     "expectedResult": "miss"    },
+    { "inputTimeSec": 40.20, "moveType": "arm_swing",  "expectedResult": "perfect" },
+    { "inputTimeSec": 42.80, "moveType": "step_left",  "expectedResult": "miss"    },
+    { "inputTimeSec": 43.85, "moveType": "spin",       "expectedResult": "perfect" },
+    { "inputTimeSec": 45.60, "moveType": "point",      "expectedResult": "perfect" },
+    { "inputTimeSec": 47.50, "moveType": "step_right", "expectedResult": "perfect" }
+  ]
+}
