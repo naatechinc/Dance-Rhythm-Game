@@ -1,16 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import ComboFeedback from '../components/ComboFeedback';
 import ErrorBanner from '../components/ErrorBanner';
 import LoadingSpinner from '../components/LoadingSpinner';
 import KaraokeBar from '../components/KaraokeBar';
-import MoveFigureRow from '../components/MoveFigureRow';
 import MoveTimeline from '../components/MoveTimeline';
 import VerticalScoreMeter from '../components/VerticalScoreMeter';
 import ControllerModal from '../components/ControllerModal';
+import GameScene, { PLAYER_COLORS } from '../components/GameScene';
 
 const MAX_SCORE = 12000;
-const PLAYER_COLOR = '#e94560';
 
 export default function PlayerScreen() {
   const { sessionId } = useParams();
@@ -22,13 +22,19 @@ export default function PlayerScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
-  const [showModal, setShowModal] = useState(true); // QR modal shown on load
+  const [showModal, setShowModal] = useState(true);
   const [score, setScore] = useState({ total: 0, combo: 0, streak: 0, multiplier: 1 });
   const [lastResult, setLastResult] = useState(null);
 
-  const playerRef = useRef(null);
+  // Players state — starts with P1 (the host), others join via socket
+  const [players, setPlayers] = useState([
+    { id: 'p1-host', color: PLAYER_COLORS[0], move: 'default', connected: true }
+  ]);
+
+  const ytPlayerRef = useRef(null);
   const timerRef = useRef(null);
   const choreoRef = useRef(null);
+  const socketRef = useRef(null);
 
   useEffect(() => { choreoRef.current = choreography; }, [choreography]);
 
@@ -43,13 +49,60 @@ export default function PlayerScreen() {
 
         const choreoRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/choreo/${sessData.trackId}`);
         if (!choreoRes.ok) throw new Error('Choreography unavailable.');
-        const choreoData = await choreoRes.json();
-        setChoreography(choreoData);
+        setChoreography(await choreoRes.json());
       } catch (err) {
         setError(err.message);
       }
     }
     load();
+  }, [sessionId]);
+
+  // Socket — listen for controllers joining and their moves
+  useEffect(() => {
+    if (!sessionId) return;
+    const socket = io(import.meta.env.VITE_SOCKET_URL, {
+      transports: ['polling', 'websocket'],
+      withCredentials: true,
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('session:join', { sessionId, role: 'host' });
+    });
+
+    socket.on('session:playerJoined', ({ playerId }) => {
+      setPlayers(prev => {
+        if (prev.find(p => p.id === playerId)) return prev;
+        const idx = prev.length;
+        return [...prev, {
+          id: playerId,
+          color: PLAYER_COLORS[idx % PLAYER_COLORS.length],
+          move: 'default',
+          connected: true,
+        }];
+      });
+    });
+
+    socket.on('session:playerLeft', ({ playerId }) => {
+      setPlayers(prev => prev.map(p =>
+        p.id === playerId ? { ...p, connected: false } : p
+      ));
+    });
+
+    socket.on('input:scored', ({ result, scoreUpdate }) => {
+      setScore(scoreUpdate);
+      setLastResult(result);
+      setTimeout(() => setLastResult(null), 700);
+    });
+
+    // When a controller moves, update that player's pose
+    socket.on('controller:motion', (payload) => {
+      setPlayers(prev => prev.map(p =>
+        p.id === payload.playerId ? { ...p, move: payload.moveType || 'default' } : p
+      ));
+    });
+
+    return () => { socket.disconnect(); };
   }, [sessionId]);
 
   // Load YouTube IFrame API
@@ -60,28 +113,21 @@ export default function PlayerScreen() {
     document.head.appendChild(tag);
   }, []);
 
-  // Create YouTube player — starts paused until modal dismissed
+  // Create YouTube player — paused until modal dismissed
   useEffect(() => {
     if (!session?.trackId) return;
 
     function createPlayer() {
       if (!window.YT || !window.YT.Player) { setTimeout(createPlayer, 200); return; }
-      if (playerRef.current) return;
+      if (ytPlayerRef.current) return;
 
-      playerRef.current = new window.YT.Player('yt-player', {
+      ytPlayerRef.current = new window.YT.Player('yt-player', {
         videoId: session.trackId,
         playerVars: { autoplay: 0, controls: 0, rel: 0, modestbranding: 1, iv_load_policy: 3 },
         events: {
-          onReady: () => {
-            setPlayerReady(true);
-            // Don't autoplay — wait for modal dismiss
-          },
-          onStateChange: (e) => {
-            setIsPlaying(e.data === window.YT.PlayerState.PLAYING);
-          },
-          onError: (e) => {
-            setError(`Video error (code ${e.data}). Try a different song.`);
-          },
+          onReady: () => setPlayerReady(true),
+          onStateChange: (e) => setIsPlaying(e.data === window.YT.PlayerState.PLAYING),
+          onError: (e) => setError(`Video error (code ${e.data}).`),
         },
       });
     }
@@ -91,27 +137,32 @@ export default function PlayerScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [session]);
 
-  // Start polling when modal dismissed and player ready
   function handleModalDismiss() {
     setShowModal(false);
-    const p = playerRef.current;
-    if (p && typeof p.playVideo === 'function') {
-      p.playVideo();
-    }
-    // Start time polling
+    ytPlayerRef.current?.playVideo();
     timerRef.current = setInterval(() => {
-      const p = playerRef.current;
+      const p = ytPlayerRef.current;
       if (!p || typeof p.getCurrentTime !== 'function') return;
-      setCurrentTime(p.getCurrentTime());
+      const t = p.getCurrentTime();
+      setCurrentTime(t);
       setIsPlaying(p.getPlayerState() === 1);
+      // Update P1 dancer move from choreography
+      const choreo = choreoRef.current;
+      if (choreo) {
+        const active = choreo.moves.find(m => t >= m.time - 0.3 && t < m.time + 1.2);
+        if (active) {
+          setPlayers(prev => prev.map((p, i) =>
+            i === 0 ? { ...p, move: active.move } : p
+          ));
+        }
+      }
     }, 100);
   }
 
   function handlePauseResume() {
-    const p = playerRef.current;
+    const p = ytPlayerRef.current;
     if (!p) return;
-    if (isPlaying) p.pauseVideo();
-    else p.playVideo();
+    if (isPlaying) p.pauseVideo(); else p.playVideo();
   }
 
   function handleFinish() {
@@ -135,24 +186,33 @@ export default function PlayerScreen() {
   const startSec = choreography?.startSec || 30;
   const endSec = choreography?.endSec || 72;
   const totalDuration = session?.track?.durationSec || 180;
+  const p1Color = PLAYER_COLORS[0];
 
   return (
     <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: '#000', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* ── QR Controller Modal (pauses video) ── */}
-      {showModal && (
-        <ControllerModal sessionId={sessionId} onDismiss={handleModalDismiss} />
-      )}
+      {/* QR Controller Modal */}
+      {showModal && <ControllerModal sessionId={sessionId} onDismiss={handleModalDismiss} />}
 
-      {/* ── VIDEO at 50% opacity ── */}
-      <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', flexShrink: 0 }}>
-        <div id="yt-player" style={{ width: '100%', height: '100%', opacity: 0.5 }} />
+      {/* GAME SCENE — backyard with stage */}
+      <div style={{ position: 'relative', width: '100%', flexShrink: 0 }}>
+        <GameScene players={players} />
 
-        {!playerReady && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
-            <LoadingSpinner message="Loading video..." />
-          </div>
-        )}
+        {/* YouTube video embedded INTO the projector screen position */}
+        <div style={{
+          position: 'absolute',
+          top: '16%', left: '33.1%',
+          width: '33.8%', height: '25.8%',
+          overflow: 'hidden',
+          opacity: 0.92,
+        }}>
+          <div id="yt-player" style={{ width: '100%', height: '100%' }} />
+          {!playerReady && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050510' }}>
+              <LoadingSpinner message="" />
+            </div>
+          )}
+        </div>
 
         <ComboFeedback result={lastResult} />
 
@@ -160,75 +220,71 @@ export default function PlayerScreen() {
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
           display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-          padding: '8px 12px',
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)',
+          padding: '6px 12px',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.65), transparent)',
           pointerEvents: 'none',
         }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}>{score.total.toLocaleString()}</div>
-            <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase' }}>Score</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{score.total.toLocaleString()}</div>
+            <div style={{ fontSize: 9, color: '#888', textTransform: 'uppercase' }}>Score</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#ffd600' }}>x{score.combo}</div>
-            <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase' }}>Combo</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#ffd600' }}>x{score.combo}</div>
+            <div style={{ fontSize: 9, color: '#888', textTransform: 'uppercase' }}>Combo</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 14, color: '#fff' }}>{formatTime(currentTime)}</div>
-            <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase' }}>Time</div>
+            <div style={{ fontSize: 13, color: '#fff' }}>{formatTime(currentTime)}</div>
+            <div style={{ fontSize: 9, color: '#888', textTransform: 'uppercase' }}>Time</div>
           </div>
         </div>
 
         {/* LEFT: Vertical score meter */}
-        <div style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-          <VerticalScoreMeter score={score.total} maxScore={MAX_SCORE} color={PLAYER_COLOR} playerLabel="P1" />
-        </div>
-
-        {/* CENTER BOTTOM: 3 stick figures overlaid on video */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0,
-          display: 'flex', justifyContent: 'center',
-          pointerEvents: 'none',
-          background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)',
-        }}>
-          <MoveFigureRow
-            moves={choreoMoves}
-            currentTime={currentTime}
-            color={PLAYER_COLOR}
-          />
+        <div style={{ position: 'absolute', left: 4, top: '30%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+          <VerticalScoreMeter score={score.total} maxScore={MAX_SCORE} color={p1Color} playerLabel="P1" />
         </div>
       </div>
 
-      {/* ── KARAOKE BAR ── */}
+      {/* KARAOKE BAR */}
       <KaraokeBar videoId={session.trackId} currentTime={currentTime} />
 
-      {/* ── MOVE TIMELINE ── */}
+      {/* MOVE TIMELINE */}
       <MoveTimeline
         moves={choreoMoves}
         currentTime={currentTime}
-        playerColor={PLAYER_COLOR}
+        playerColor={p1Color}
         startSec={startSec}
         endSec={endSec}
         totalDuration={totalDuration}
       />
 
-      {/* ── CONTROLS ── */}
+      {/* CONTROLS */}
       <div style={{
-        display: 'flex', gap: '0.75rem', padding: '10px 16px',
+        display: 'flex', gap: '0.75rem', padding: '8px 16px',
         background: 'rgba(0,0,0,0.9)',
         borderTop: '1px solid #111',
       }}>
         <button onClick={handlePauseResume}
-          style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: '#0f3460', color: '#fff', cursor: 'pointer', fontSize: '0.9rem' }}>
+          style={{ padding: '0.45rem 1.1rem', borderRadius: '8px', border: 'none', background: '#0f3460', color: '#fff', cursor: 'pointer', fontSize: '0.85rem' }}>
           {isPlaying ? '⏸' : '▶'}
         </button>
         <button onClick={handleFinish}
-          style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: 'none', background: '#e94560', color: '#fff', cursor: 'pointer', fontSize: '0.9rem' }}>
+          style={{ padding: '0.45rem 1.1rem', borderRadius: '8px', border: 'none', background: '#e94560', color: '#fff', cursor: 'pointer', fontSize: '0.85rem' }}>
           Finish ✓
         </button>
         <button onClick={() => navigate('/search')}
-          style={{ padding: '0.5rem 1.2rem', borderRadius: '8px', border: '1px solid #222', background: 'transparent', color: '#555', cursor: 'pointer', fontSize: '0.9rem' }}>
+          style={{ padding: '0.45rem 1.1rem', borderRadius: '8px', border: '1px solid #222', background: 'transparent', color: '#555', cursor: 'pointer', fontSize: '0.85rem' }}>
           ← Back
         </button>
+        {/* Connected players indicator */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {players.map((p, i) => (
+            <div key={p.id} style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: p.connected ? p.color : '#333',
+              border: `1px solid ${p.connected ? p.color : '#555'}`,
+            }} title={`P${i+1} ${p.connected ? 'connected' : 'disconnected'}`}/>
+          ))}
+        </div>
       </div>
     </div>
   );
