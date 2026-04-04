@@ -2,18 +2,29 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import MovePrompt from '../components/MovePrompt';
 import ScoreHUD from '../components/ScoreHUD';
+<<<<<<< HEAD
 import ComboFeedback from '../components/ComboFeedback';
 import EnergyMeter from '../components/EnergyMeter';
 import ErrorBanner from '../components/ErrorBanner';
 import LoadingSpinner from '../components/LoadingSpinner';
+=======
+import ErrorBanner from '../components/ErrorBanner';
+import useGameTimer from '../hooks/useGameTimer';
+import useSocket from '../hooks/useSocket';
+>>>>>>> 998c02f83b72c9220e71b9fcc5f71a36e2cf33d9
 
 export default function PlayerScreen() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+<<<<<<< HEAD
+=======
+  const playerRef = useRef(null);
+>>>>>>> 998c02f83b72c9220e71b9fcc5f71a36e2cf33d9
 
   const [session, setSession] = useState(null);
   const [choreography, setChoreography] = useState(null);
   const [activePrompts, setActivePrompts] = useState([]);
+<<<<<<< HEAD
   const [score, setScore] = useState({ total: 0, combo: 0, streak: 0, multiplier: 1 });
   const [lastResult, setLastResult] = useState(null);
   const [energy, setEnergy] = useState(0);
@@ -29,6 +40,15 @@ export default function PlayerScreen() {
   useEffect(() => { choreoRef.current = choreography; }, [choreography]);
 
   // Load session + choreography
+=======
+  const [score, setScore] = useState({ total: 0, combo: 0, streak: 0 });
+  const [error, setError] = useState(null);
+
+  const { currentTime, isPlaying, pause, resume } = useGameTimer(playerRef);
+  const socket = useSocket(sessionId);
+
+  // Load session + choreography on mount
+>>>>>>> 998c02f83b72c9220e71b9fcc5f71a36e2cf33d9
   useEffect(() => {
     async function load() {
       try {
@@ -52,6 +72,7 @@ export default function PlayerScreen() {
     load();
   }, [sessionId]);
 
+<<<<<<< HEAD
   // Load YouTube IFrame API
   useEffect(() => {
     if (window.YT && window.YT.Player) return;
@@ -158,11 +179,52 @@ export default function PlayerScreen() {
         {activePrompts.length === 0 && isPlaying && (
           <p style={{ color: '#555', fontSize: '0.85rem', textAlign: 'center' }}>Get ready...</p>
         )}
+=======
+  // Prompt scheduler: activate moves slightly before their target time
+  useEffect(() => {
+    if (!choreography) return;
+    const LEAD_IN_SEC = 0.5;
+    const active = choreography.moves.filter(
+      (m) => currentTime >= m.time - LEAD_IN_SEC && currentTime < m.time + 1.5
+    );
+    setActivePrompts(active);
+  }, [currentTime, choreography]);
+
+  // Handle scored input from socket
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('input:scored', ({ result, scoreUpdate }) => {
+      setScore(scoreUpdate);
+    });
+    return () => socket.off('input:scored');
+  }, [socket]);
+
+  function handleFinish() {
+    navigate(`/results/${sessionId}`);
+  }
+
+  if (error) return <ErrorBanner message={error} />;
+  if (!session) return <p style={{ padding: '2rem', color: 'var(--color-text-muted)' }}>Loading session...</p>;
+
+  return (
+    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: 'var(--color-bg)' }}>
+      {/* Video Player */}
+      <div style={{ width: '100%', aspectRatio: '16/9', background: '#000' }}>
+        <div id="youtube-player" ref={playerRef} style={{ width: '100%', height: '100%' }} />
+      </div>
+
+      {/* HUD overlay */}
+      <ScoreHUD score={score} currentTime={currentTime} />
+
+      {/* Move prompts */}
+      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+>>>>>>> 998c02f83b72c9220e71b9fcc5f71a36e2cf33d9
         {activePrompts.map((prompt, i) => (
           <MovePrompt key={`${prompt.time}-${i}`} move={prompt.move} targetTime={prompt.time} currentTime={currentTime} />
         ))}
       </div>
 
+<<<<<<< HEAD
       <div style={{ display: 'flex', gap: '1rem', padding: '0.5rem 1rem 1.5rem' }}>
         <button onClick={handlePauseResume}
           style={{ padding: '0.6rem 1.4rem', borderRadius: '8px', border: 'none', background: '#0f3460', color: '#fff', cursor: 'pointer' }}>
@@ -176,6 +238,18 @@ export default function PlayerScreen() {
           style={{ padding: '0.6rem 1.4rem', borderRadius: '8px', border: '1px solid #333', background: 'transparent', color: '#888', cursor: 'pointer' }}>
           Back
         </button>
+=======
+      {/* Controls */}
+      <div style={{ display: 'flex', gap: '1rem', padding: '1rem' }}>
+        <button onClick={isPlaying ? pause : resume}
+          style={{ padding: '0.6rem 1.2rem', borderRadius: 'var(--radius)', border: 'none', background: 'var(--color-accent-2)', color: '#fff' }}>
+          {isPlaying ? 'Pause' : 'Resume'}
+        </button>
+        <button onClick={handleFinish}
+          style={{ padding: '0.6rem 1.2rem', borderRadius: 'var(--radius)', border: 'none', background: 'var(--color-accent)', color: '#fff' }}>
+          Finish
+        </button>
+>>>>>>> 998c02f83b72c9220e71b9fcc5f71a36e2cf33d9
       </div>
     </div>
   );
