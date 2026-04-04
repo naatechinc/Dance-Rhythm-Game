@@ -13,15 +13,24 @@ const registerSocketHandlers = require('./sockets/socketHandlers');
 const app = express();
 const server = http.createServer(app);
 
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: corsOrigin,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
+  // Allow both polling and websocket — polling as fallback for Railway
+  transports: ['polling', 'websocket'],
+  allowEIO3: true,
 });
 
 // Middleware
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173' }));
+app.use(cors({
+  origin: corsOrigin,
+  credentials: true,
+}));
 app.use(express.json());
 
 // Routes
@@ -36,6 +45,7 @@ registerSocketHandlers(io);
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`[server] Running on http://localhost:${PORT}`);
+  console.log(`[server] CORS origin: ${corsOrigin}`);
 });
 
 module.exports = { app, server };

@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 /**
  * useSocket
  * Connects to the backend socket server and joins a session room.
- * Returns the socket instance so components can listen/emit directly.
+ * Uses polling first then upgrades to websocket — works on Railway.
  */
 export default function useSocket(sessionId) {
   const socketRef = useRef(null);
@@ -13,11 +13,17 @@ export default function useSocket(sessionId) {
     if (!sessionId) return;
 
     const socket = io(import.meta.env.VITE_SOCKET_URL, {
-      transports: ['websocket'],
+      transports: ['polling', 'websocket'], // polling first for Railway compatibility
+      withCredentials: true,
     });
 
     socket.on('connect', () => {
+      console.log('[socket] connected:', socket.id);
       socket.emit('session:join', { sessionId });
+    });
+
+    socket.on('connect_error', (err) => {
+      console.warn('[socket] connect error:', err.message);
     });
 
     socket.on('disconnect', (reason) => {
