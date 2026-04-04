@@ -4,12 +4,13 @@ import ComboFeedback from '../components/ComboFeedback';
 import ErrorBanner from '../components/ErrorBanner';
 import LoadingSpinner from '../components/LoadingSpinner';
 import KaraokeBar from '../components/KaraokeBar';
-import StickFigure from '../components/StickFigure';
+import MoveFigureRow from '../components/MoveFigureRow';
 import MoveTimeline from '../components/MoveTimeline';
 import VerticalScoreMeter from '../components/VerticalScoreMeter';
+import ControllerModal from '../components/ControllerModal';
 
 const MAX_SCORE = 12000;
-const PLAYER_COLORS = ['#e94560', '#40c4ff', '#00e676', '#ffd600'];
+const PLAYER_COLOR = '#e94560';
 
 export default function PlayerScreen() {
   const { sessionId } = useParams();
@@ -21,9 +22,9 @@ export default function PlayerScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playerReady, setPlayerReady] = useState(false);
+  const [showModal, setShowModal] = useState(true); // QR modal shown on load
   const [score, setScore] = useState({ total: 0, combo: 0, streak: 0, multiplier: 1 });
   const [lastResult, setLastResult] = useState(null);
-  const [currentMove, setCurrentMove] = useState(null);
 
   const playerRef = useRef(null);
   const timerRef = useRef(null);
@@ -59,7 +60,7 @@ export default function PlayerScreen() {
     document.head.appendChild(tag);
   }, []);
 
-  // Create YouTube player
+  // Create YouTube player — starts paused until modal dismissed
   useEffect(() => {
     if (!session?.trackId) return;
 
@@ -69,27 +70,18 @@ export default function PlayerScreen() {
 
       playerRef.current = new window.YT.Player('yt-player', {
         videoId: session.trackId,
-        playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1, iv_load_policy: 3 },
+        playerVars: { autoplay: 0, controls: 0, rel: 0, modestbranding: 1, iv_load_policy: 3 },
         events: {
-          onReady: (e) => {
+          onReady: () => {
             setPlayerReady(true);
-            e.target.playVideo();
-            timerRef.current = setInterval(() => {
-              const p = playerRef.current;
-              if (!p || typeof p.getCurrentTime !== 'function') return;
-              const t = p.getCurrentTime();
-              setCurrentTime(t);
-              setIsPlaying(p.getPlayerState() === 1);
-              // Find current move
-              const choreo = choreoRef.current;
-              if (choreo) {
-                const active = choreo.moves.find(m => t >= m.time - 0.3 && t < m.time + 1.2);
-                setCurrentMove(active || null);
-              }
-            }, 100);
+            // Don't autoplay — wait for modal dismiss
           },
-          onStateChange: (e) => setIsPlaying(e.data === window.YT.PlayerState.PLAYING),
-          onError: (e) => setError(`Video error (code ${e.data}). Try a different song.`),
+          onStateChange: (e) => {
+            setIsPlaying(e.data === window.YT.PlayerState.PLAYING);
+          },
+          onError: (e) => {
+            setError(`Video error (code ${e.data}). Try a different song.`);
+          },
         },
       });
     }
@@ -98,6 +90,22 @@ export default function PlayerScreen() {
     createPlayer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [session]);
+
+  // Start polling when modal dismissed and player ready
+  function handleModalDismiss() {
+    setShowModal(false);
+    const p = playerRef.current;
+    if (p && typeof p.playVideo === 'function') {
+      p.playVideo();
+    }
+    // Start time polling
+    timerRef.current = setInterval(() => {
+      const p = playerRef.current;
+      if (!p || typeof p.getCurrentTime !== 'function') return;
+      setCurrentTime(p.getCurrentTime());
+      setIsPlaying(p.getPlayerState() === 1);
+    }, 100);
+  }
 
   function handlePauseResume() {
     const p = playerRef.current;
@@ -123,22 +131,18 @@ export default function PlayerScreen() {
 
   if (!session) return <LoadingSpinner message="Loading session..." />;
 
-  const p1Color = PLAYER_COLORS[0];
   const choreoMoves = choreography?.moves || [];
   const startSec = choreography?.startSec || 30;
   const endSec = choreography?.endSec || 72;
   const totalDuration = session?.track?.durationSec || 180;
 
   return (
-    <div style={{
-      position: 'relative',
-      width: '100%',
-      minHeight: '100vh',
-      background: '#000',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-    }}>
+    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: '#000', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {/* ── QR Controller Modal (pauses video) ── */}
+      {showModal && (
+        <ControllerModal sessionId={sessionId} onDismiss={handleModalDismiss} />
+      )}
 
       {/* ── VIDEO at 50% opacity ── */}
       <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', flexShrink: 0 }}>
@@ -150,15 +154,14 @@ export default function PlayerScreen() {
           </div>
         )}
 
-        {/* ── PERFECT/GOOD/MISS flash ── */}
         <ComboFeedback result={lastResult} />
 
-        {/* ── TOP HUD: score + combo ── */}
+        {/* TOP HUD */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
           display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
           padding: '8px 12px',
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)',
           pointerEvents: 'none',
         }}>
           <div>
@@ -175,44 +178,34 @@ export default function PlayerScreen() {
           </div>
         </div>
 
-        {/* ── LEFT: Vertical score meter ── */}
-        <div style={{
-          position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)',
-          pointerEvents: 'none',
-        }}>
-          <VerticalScoreMeter score={score.total} maxScore={MAX_SCORE} color={p1Color} playerLabel="P1" />
+        {/* LEFT: Vertical score meter */}
+        <div style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+          <VerticalScoreMeter score={score.total} maxScore={MAX_SCORE} color={PLAYER_COLOR} playerLabel="P1" />
         </div>
 
-        {/* ── CENTER: Big stick figure dancer ── */}
+        {/* CENTER BOTTOM: 3 stick figures overlaid on video */}
         <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          display: 'flex', justifyContent: 'center',
           pointerEvents: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
+          background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)',
         }}>
-          <StickFigure
-            move={currentMove?.move || 'default'}
-            color={p1Color}
-            size={120}
+          <MoveFigureRow
+            moves={choreoMoves}
+            currentTime={currentTime}
+            color={PLAYER_COLOR}
           />
         </div>
       </div>
 
       {/* ── KARAOKE BAR ── */}
-      <KaraokeBar
-        videoId={session.trackId}
-        currentTime={currentTime}
-      />
+      <KaraokeBar videoId={session.trackId} currentTime={currentTime} />
 
       {/* ── MOVE TIMELINE ── */}
       <MoveTimeline
         moves={choreoMoves}
         currentTime={currentTime}
-        playerColor={p1Color}
+        playerColor={PLAYER_COLOR}
         startSec={startSec}
         endSec={endSec}
         totalDuration={totalDuration}
