@@ -8,8 +8,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { DIFFICULTY_CONFIG } = require('../../../shared/constants');
-const { generate } = require('../../../shared/choreoGenerator');
+const { DIFFICULTY_CONFIG } = require('./shared/constants');
+const { generate } = require('./shared/choreoGenerator');
 
 const CHOREO_DIR = path.join(__dirname, '../../../data/choreography');
 

@@ -4,7 +4,7 @@
  * The same input stream always produces the same score.
  */
 
-const { TIMING_WINDOWS, SCORE_VALUES, COMBO_MULTIPLIER_THRESHOLD } = require('../../../shared/constants');
+const { TIMING_WINDOWS, SCORE_VALUES, COMBO_MULTIPLIER_THRESHOLD } = require('./shared/constants');
 
 /**
  * Evaluate a single input event against a scheduled move window.
