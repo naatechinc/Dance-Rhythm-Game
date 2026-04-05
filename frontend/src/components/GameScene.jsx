@@ -31,22 +31,35 @@ const MOVE_POSES = {
   default:    { bodyRot: 0,   lArm: [-20, 20],  rArm: [20, 20],  lLeg: [-8, 55],  rLeg: [8, 55]  },
 };
 
-function Dancer({ x, y, color, rightHandColor, move, label, connected }) {
+function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+function Dancer({ x, y, color, rightHandColor, move, motion, label, connected }) {
   const pose = MOVE_POSES[move] || MOVE_POSES.default;
   const yOff = pose.yOff || 0;
   const opacity = connected ? 1 : 0.35;
   const rhColor = rightHandColor || color;
 
+  // If we have live motion data, blend it into arm/leg positions
+  const m = motion || { ax: 0, ay: 0, az: 0, gamma: 0 };
+  const lArmX = pose.lArm[0] + clamp(-m.gamma * 0.2, -10, 10);
+  const lArmY = pose.lArm[1] + clamp(-m.ay * 0.5, -8, 8);
+  const rArmX = pose.rArm[0] + clamp(m.gamma * 0.2, -10, 10);
+  const rArmY = pose.rArm[1] + clamp(-m.ay * 0.5, -8, 8);
+  const lLegX = pose.lLeg[0] + clamp(-m.ax * 0.4, -8, 8);
+  const rLegX = pose.rLeg[0] + clamp(m.ax * 0.4, -8, 8);
+  const bodyTilt = pose.bodyRot + clamp(m.gamma * 0.15, -8, 8);
+  const bodyBob = clamp(-m.az * 0.3, -4, 4);
+
   return (
-    <g transform={`translate(${x}, ${y + yOff})`} opacity={opacity} style={{ transition: 'all 0.15s ease' }}>
+    <g transform={`translate(${x}, ${y + yOff + bodyBob})`} opacity={opacity}>
       <ellipse cx="0" cy="58" rx="16" ry="5" fill="#000" opacity="0.25"/>
-      <g transform={`rotate(${pose.bodyRot})`}>
+      <g transform={`rotate(${bodyTilt})`}>
         <path d="M-12,30 Q0,52 12,30 Q16,8 0,-4 Q-16,8 -12,30Z" fill={color}/>
         <circle cx="0" cy="-14" r="13" fill={color}/>
-        <line x1="-12" y1="14" x2={pose.lArm[0]} y2={pose.lArm[1]} stroke={color} strokeWidth="6" strokeLinecap="round"/>
-        <line x1="12" y1="14" x2={pose.rArm[0]} y2={pose.rArm[1]} stroke={rhColor} strokeWidth="8" strokeLinecap="round"/>
-        <line x1="-5" y1="30" x2={pose.lLeg[0]} y2={pose.lLeg[1]} stroke={color} strokeWidth="6" strokeLinecap="round"/>
-        <line x1="5" y1="30" x2={pose.rLeg[0]} y2={pose.rLeg[1]} stroke={color} strokeWidth="6" strokeLinecap="round"/>
+        <line x1="-12" y1="14" x2={lArmX} y2={lArmY} stroke={color} strokeWidth="6" strokeLinecap="round"/>
+        <line x1="12" y1="14" x2={rArmX} y2={rArmY} stroke={rhColor} strokeWidth="8" strokeLinecap="round"/>
+        <line x1="-5" y1="30" x2={lLegX} y2={pose.lLeg[1]} stroke={color} strokeWidth="6" strokeLinecap="round"/>
+        <line x1="5" y1="30" x2={rLegX} y2={pose.rLeg[1]} stroke={color} strokeWidth="6" strokeLinecap="round"/>
       </g>
       <text x="0" y="72" textAnchor="middle" fontFamily="sans-serif" fontSize="9" fill={color} fontWeight="bold">{label}</text>
       {!connected && (
@@ -178,6 +191,7 @@ export default function GameScene({ players = [], videoElementId = 'yt-player' }
                 color={p.color || PLAYER_COLORS[i]}
                 rightHandColor={p.color || PLAYER_COLORS[i]}
                 move={p.move || 'default'}
+                motion={p.motion}
                 label={`P${i + 1}`}
                 connected={p.connected}
               />

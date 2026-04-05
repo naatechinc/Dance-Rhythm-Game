@@ -95,18 +95,25 @@ export default function PlayerScreen() {
       setTimeout(() => setLastResult(null), 700);
     });
 
-    // When a controller moves, update that player's pose then reset to default
+    // Real-time motion from controller — update dancer pose + raw sensor data
     socket.on('controller:motion', (payload) => {
-      if (!payload.playerId || !payload.moveType) return;
-      setPlayers(prev => prev.map(p =>
-        p.id === payload.playerId ? { ...p, move: payload.moveType } : p
-      ));
-      // Reset back to default pose after 1.2 seconds
-      setTimeout(() => {
-        setPlayers(prev => prev.map(p =>
-          p.id === payload.playerId ? { ...p, move: 'default' } : p
-        ));
-      }, 1200);
+      if (!payload.playerId) return;
+      setPlayers(prev => prev.map(p => {
+        if (p.id !== payload.playerId) return p;
+        return {
+          ...p,
+          move: payload.moveType || p.move || 'default',
+          motion: { ax: payload.ax||0, ay: payload.ay||0, az: payload.az||0, gamma: payload.gamma||0 },
+        };
+      }));
+      // Reset move after animation window
+      if (payload.moveType) {
+        setTimeout(() => {
+          setPlayers(prev => prev.map(p =>
+            p.id === payload.playerId ? { ...p, move: 'default' } : p
+          ));
+        }, 900);
+      }
     });
 
     return () => { socket.disconnect(); };
