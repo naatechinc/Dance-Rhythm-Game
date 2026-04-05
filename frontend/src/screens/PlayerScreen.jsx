@@ -9,7 +9,6 @@ import MoveTimeline from '../components/MoveTimeline';
 import VerticalScoreMeter from '../components/VerticalScoreMeter';
 import ControllerModal from '../components/ControllerModal';
 import GameScene, { PLAYER_COLORS } from '../components/GameScene';
-import MoveFigureRow from '../components/MoveFigureRow';
 
 const MAX_SCORE = 12000;
 
@@ -231,6 +230,8 @@ export default function PlayerScreen() {
           players={players.map(p => ({ ...p, score: playerScores[p.id] || 0 }))}
           scene={scene}
           bpm={choreography?.bpm || 120}
+          energy={choreography?.spotifyEnergy || 0.7}
+          danceability={choreography?.spotifyDanceability || 0.7}
         />
 
         {/* YouTube video — fullscreen if video scene, else in projector */}
@@ -304,9 +305,6 @@ export default function PlayerScreen() {
           </div>
         )}
       </div>
-
-      {/* MOVE FIGURE ROW — 3 stick figures showing current + next 2 moves */}
-      <MoveFigureRow moves={choreoMoves} currentTime={currentTime} color={p1Color} />
 
       {/* KARAOKE BAR */}
       <KaraokeBar videoId={session.trackId} currentTime={currentTime} />

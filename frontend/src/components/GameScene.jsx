@@ -244,20 +244,24 @@ function ArcadeScene() {
 }
 
 const SCENES = {
-  backyard: { label: 'Backyard Sunset', component: BackyardSunset },
-  moon:     { label: 'On the Moon',     component: MoonScene },
-  neon:     { label: 'Neon City',       component: NeonCityScene },
-  beach:    { label: 'Tropical Beach',  component: BeachScene },
-  space:    { label: 'Space Station',   component: SpaceStationScene },
-  jungle:   { label: 'Jungle Temple',   component: JungleScene },
-  arcade:   { label: 'Retro Arcade',    component: ArcadeScene },
-  video:    { label: 'Full Screen Video', component: null },
-  visualizer: { label: 'Audio Visualizer', component: null },
+  backyard:    { label: 'Backyard Sunset',    component: BackyardSunset },
+  moon:        { label: 'On the Moon',        component: MoonScene },
+  neon:        { label: 'Neon City',          component: NeonCityScene },
+  beach:       { label: 'Tropical Beach',     component: BeachScene },
+  space:       { label: 'Space Station',      component: SpaceStationScene },
+  jungle:      { label: 'Jungle Temple',      component: JungleScene },
+  arcade:      { label: 'Retro Arcade',       component: ArcadeScene },
+  video:       { label: 'Full Screen Video',  component: null },
+  viz_bars:    { label: 'Viz: Spectrum Bars', component: null, vizStyle: 'bars' },
+  viz_wave:    { label: 'Viz: Waveform',      component: null, vizStyle: 'waveform' },
+  viz_circle:  { label: 'Viz: Circular',      component: null, vizStyle: 'circular' },
+  viz_particles:{ label: 'Viz: Particle Storm',component: null, vizStyle: 'particles' },
+  viz_matrix:  { label: 'Viz: Matrix Rain',   component: null, vizStyle: 'matrix' },
 };
 
 export { PLAYER_COLORS, SCENES };
 
-export default function GameScene({ players = [], scene = 'backyard', bpm = 120 }) {
+export default function GameScene({ players = [], scene = 'backyard', bpm = 120, energy = 0.7, danceability = 0.7 }) {
   const activePlayers = players.slice(0, 6);
   const stageLeft = 185, stageRight = 775, stageY = 328;
   const spacing = activePlayers.length > 1 ? (stageRight - stageLeft) / (activePlayers.length - 1) : 0;
@@ -268,18 +272,26 @@ export default function GameScene({ players = [], scene = 'backyard', bpm = 120 
 
   const SceneBackground = SCENES[scene]?.component || BackyardSunset;
 
-  // Visualizer scene
-  if (scene === 'visualizer') {
+  // Any visualizer scene
+  const vizStyle = SCENES[scene]?.vizStyle;
+  if (vizStyle) {
     return (
       <div style={{ width: '100%', position: 'relative', userSelect: 'none' }}>
         <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <AudioVisualizer active={true} width={960} height={480} color="#00ff88" bpm={bpm} />
+          <AudioVisualizer
+            style={vizStyle}
+            bpm={bpm}
+            energy={energy}
+            danceability={danceability}
+            width={960} height={480}
+            color="#00ff88"
+          />
         </div>
         <svg width="100%" viewBox="0 0 960 480" xmlns="http://www.w3.org/2000/svg"
           style={{ display: 'block', position: 'relative', zIndex: 1 }}>
           <rect x="0" y="0" width="960" height="480" fill="transparent"/>
-          <rect x="155" y="353" width="650" height="45" fill="#0a1a0a" rx="4" opacity="0.8"/>
-          <rect x="155" y="348" width="650" height="14" fill="#0d240d" rx="3" opacity="0.8"/>
+          <rect x="155" y="353" width="650" height="45" fill="#061206" rx="4" opacity="0.85"/>
+          <rect x="155" y="348" width="650" height="14" fill="#081808" rx="3" opacity="0.85"/>
           {activePlayers.map((p, i) => {
             const x = activePlayers.length === 1 ? 480 : stageLeft + i * spacing;
             return <Dancer key={p.id} x={x} y={stageY} color={p.color || PLAYER_COLORS[i]}
