@@ -6,6 +6,7 @@ import ErrorBanner from '../components/ErrorBanner';
 import LoadingSpinner from '../components/LoadingSpinner';
 import KaraokeBar from '../components/KaraokeBar';
 import MoveTimeline from '../components/MoveTimeline';
+import MoveFigureRow from '../components/MoveFigureRow';
 import VerticalScoreMeter from '../components/VerticalScoreMeter';
 import ControllerModal from '../components/ControllerModal';
 import GameScene, { PLAYER_COLORS } from '../components/GameScene';
@@ -232,6 +233,8 @@ export default function PlayerScreen() {
           bpm={choreography?.bpm || 120}
           energy={choreography?.spotifyEnergy || 0.7}
           danceability={choreography?.spotifyDanceability || 0.7}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
         />
 
         {/* YouTube video — fullscreen if video scene, else in projector */}
@@ -305,6 +308,9 @@ export default function PlayerScreen() {
           </div>
         )}
       </div>
+
+      {/* MOVE FIGURE ROW — current move + next 2 */}
+      <MoveFigureRow moves={choreoMoves} currentTime={currentTime} color={p1Color} />
 
       {/* KARAOKE BAR */}
       <KaraokeBar videoId={session.trackId} currentTime={currentTime} />

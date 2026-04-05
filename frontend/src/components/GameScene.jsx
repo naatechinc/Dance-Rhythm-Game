@@ -261,7 +261,7 @@ const SCENES = {
 
 export { PLAYER_COLORS, SCENES };
 
-export default function GameScene({ players = [], scene = 'backyard', bpm = 120, energy = 0.7, danceability = 0.7 }) {
+export default function GameScene({ players = [], scene = 'backyard', bpm = 120, energy = 0.7, danceability = 0.7, isPlaying = false, currentTime = 0 }) {
   const activePlayers = players.slice(0, 6);
   const stageLeft = 185, stageRight = 775, stageY = 328;
   const spacing = activePlayers.length > 1 ? (stageRight - stageLeft) / (activePlayers.length - 1) : 0;
@@ -279,10 +279,12 @@ export default function GameScene({ players = [], scene = 'backyard', bpm = 120,
       <div style={{ width: '100%', position: 'relative', userSelect: 'none' }}>
         <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
           <AudioVisualizer
-            style={vizStyle}
+            vizStyle={vizStyle}
             bpm={bpm}
             energy={energy}
             danceability={danceability}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
             width={960} height={480}
             color="#00ff88"
           />

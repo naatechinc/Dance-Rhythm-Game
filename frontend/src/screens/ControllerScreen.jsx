@@ -133,7 +133,7 @@ export default function ControllerScreen() {
       const rot = e.rotationRate || {};
 
       const ax = smooth('ax', acc.x || 0);
-      const ay = smooth('ay', acc.y || 0);
+      const ay = smooth('ay', (acc.y || 0) * 0.6); // dampened 40%
       const az = smooth('az', acc.z || 0);
       const alpha = smooth('alpha', rot.alpha || 0);
       const beta  = smooth('beta',  rot.beta  || 0);
