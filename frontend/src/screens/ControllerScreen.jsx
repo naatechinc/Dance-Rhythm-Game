@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { SCENES } from '../components/GameScene';
 import { useParams } from 'react-router-dom';
 
 /**
@@ -33,6 +34,8 @@ export default function ControllerScreen() {
   const [playerColor, setPlayerColor] = useState('#e94560');
   const [currentMove, setCurrentMove] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const [selectedScene, setSelectedScene] = useState('backyard');
+  const [showScenes, setShowScenes] = useState(false);
 
   // Live sensor readings for visualization
   const [motion, setMotion] = useState({ ax: 0, ay: 0, az: 0, alpha: 0, beta: 0, gamma: 0 });
@@ -84,6 +87,15 @@ export default function ControllerScreen() {
 
     return () => socketRef.current?.disconnect();
   }, [sessionId]);
+
+  function changeScene(sceneKey) {
+    setSelectedScene(sceneKey);
+    setShowScenes(false);
+    const socket = socketRef.current;
+    if (socket?.connected) {
+      socket.emit('scene:change', { sessionId, scene: sceneKey });
+    }
+  }
 
   function requestPermission() {
     DeviceMotionEvent.requestPermission()
@@ -329,6 +341,45 @@ export default function ControllerScreen() {
           Enable Motion Control
         </button>
       )}
+
+      {/* BACKGROUND SCENE SELECTOR */}
+      <div style={{ marginTop: '1.5rem', width: '100%', maxWidth: 260 }}>
+        <button
+          onClick={() => setShowScenes(!showScenes)}
+          style={{
+            width: '100%', padding: '0.7rem 1rem',
+            borderRadius: 8, border: `1px solid ${playerColor}44`,
+            background: '#111', color: '#aaa',
+            fontSize: '0.85rem', cursor: 'pointer',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}
+        >
+          <span>🌄 Background: {SCENES[selectedScene]?.label || 'Backyard'}</span>
+          <span>{showScenes ? '▲' : '▼'}</span>
+        </button>
+        {showScenes && (
+          <div style={{
+            marginTop: 4, background: '#0d0d1a',
+            border: '1px solid #222', borderRadius: 8, overflow: 'hidden',
+          }}>
+            {Object.entries(SCENES).map(([key, { label }]) => (
+              <button
+                key={key}
+                onClick={() => changeScene(key)}
+                style={{
+                  width: '100%', padding: '0.65rem 1rem',
+                  background: selectedScene === key ? playerColor + '22' : 'transparent',
+                  border: 'none', borderBottom: '1px solid #111',
+                  color: selectedScene === key ? playerColor : '#666',
+                  fontSize: '0.85rem', cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <p style={{ marginTop: '1rem', fontSize: '0.7rem', color: '#222' }}>
         {sessionId?.slice(0, 8)}…

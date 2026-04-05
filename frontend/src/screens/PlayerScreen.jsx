@@ -9,6 +9,7 @@ import MoveTimeline from '../components/MoveTimeline';
 import VerticalScoreMeter from '../components/VerticalScoreMeter';
 import ControllerModal from '../components/ControllerModal';
 import GameScene, { PLAYER_COLORS } from '../components/GameScene';
+import MoveFigureRow from '../components/MoveFigureRow';
 
 const MAX_SCORE = 12000;
 
@@ -25,6 +26,7 @@ export default function PlayerScreen() {
   const [showModal, setShowModal] = useState(true);
   const [score, setScore] = useState({ total: 0, combo: 0, streak: 0, multiplier: 1 });
   const [lastResult, setLastResult] = useState(null);
+  const [scene, setScene] = useState('backyard');
 
   // Players state — starts with P1 (the host), others join via socket
   const [players, setPlayers] = useState([
@@ -70,13 +72,18 @@ export default function PlayerScreen() {
       socket.emit('session:join', { sessionId, role: 'host' });
     });
 
-    socket.on('session:playerJoined', ({ playerId }) => {
+    socket.on('scene:change', ({ scene: newScene }) => {
+      setScene(newScene);
+    });
+
+    socket.on('session:playerJoined', ({ playerId, color }) => {
       setPlayers(prev => {
         if (prev.find(p => p.id === playerId)) return prev;
         const idx = prev.length;
+        const assignedColor = color || PLAYER_COLORS[idx % PLAYER_COLORS.length];
         return [...prev, {
           id: playerId,
-          color: PLAYER_COLORS[idx % PLAYER_COLORS.length],
+          color: assignedColor,
           move: 'default',
           connected: true,
         }];
@@ -210,7 +217,7 @@ export default function PlayerScreen() {
 
       {/* GAME SCENE — backyard with stage */}
       <div style={{ position: 'relative', width: '100%', flexShrink: 0 }}>
-        <GameScene players={players} />
+        <GameScene players={players} scene={scene} />
 
         {/* YouTube video embedded INTO the projector screen position */}
         <div style={{
@@ -257,6 +264,9 @@ export default function PlayerScreen() {
           <VerticalScoreMeter score={score.total} maxScore={MAX_SCORE} color={p1Color} playerLabel="P1" />
         </div>
       </div>
+
+      {/* MOVE FIGURE ROW — 3 stick figures showing current + next 2 moves */}
+      <MoveFigureRow moves={choreoMoves} currentTime={currentTime} color={p1Color} />
 
       {/* KARAOKE BAR */}
       <KaraokeBar videoId={session.trackId} currentTime={currentTime} />

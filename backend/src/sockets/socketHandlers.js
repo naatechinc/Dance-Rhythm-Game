@@ -31,8 +31,16 @@ function registerSocketHandlers(io) {
 
       if (role === 'controller') {
         sessionService.addPlayer(sessionId, socket.id);
-        io.to(sessionId).emit('session:playerJoined', { playerId: socket.id });
-        console.log(`[socket] controller joined session ${sessionId}`);
+        // Assign a color index based on how many players are already in session
+        const PLAYER_COLORS = ['#e94560', '#40c4ff', '#00e676', '#b04dff', '#ff9800', '#ff4ea3'];
+        const playerCount = session.players.length; // count BEFORE adding
+        const assignedColor = PLAYER_COLORS[playerCount % PLAYER_COLORS.length];
+        socket.data.playerColor = assignedColor;
+        // Tell the game screen a new player joined (with their color)
+        io.to(sessionId).emit('session:playerJoined', { playerId: socket.id, color: assignedColor });
+        // Tell the controller what color they are
+        socket.emit('player:color', { color: assignedColor, playerIndex: playerCount });
+        console.log(`[socket] controller joined session ${sessionId} as color ${assignedColor}`);
       }
 
       socket.emit('session:joined', { sessionId, status: session.status });
@@ -45,7 +53,7 @@ function registerSocketHandlers(io) {
       const { sessionId } = socket.data;
       if (!sessionId) return;
 
-      // Forward motion to game client with playerId so the right dancer updates
+      // Forward full sensor data to game client with playerId
       socket.to(sessionId).emit('controller:motion', {
         ...payload,
         playerId: socket.id,
@@ -96,6 +104,16 @@ function registerSocketHandlers(io) {
     });
 
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Controller changes background scene
+    // ------------------------------------------------------------------
+    socket.on('scene:change', ({ sessionId: sid, scene }) => {
+      const sessionId = sid || socket.data.sessionId;
+      if (!sessionId || !scene) return;
+      // Broadcast to everyone in session (including game screen)
+      io.to(sessionId).emit('scene:change', { scene });
+    });
+
     // Heartbeat / ping-pong
     // ------------------------------------------------------------------
     socket.on('ping', () => socket.emit('pong', { ts: Date.now() }));
