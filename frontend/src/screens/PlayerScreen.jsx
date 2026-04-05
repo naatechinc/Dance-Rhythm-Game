@@ -49,7 +49,12 @@ export default function PlayerScreen() {
         const sessData = await sessRes.json();
         setSession(sessData);
 
-        const choreoRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/choreo/${sessData.trackId}`);
+        // Pass title + artist so backend can fetch real BPM from Spotify
+        const title = encodeURIComponent(sessData.track?.title || '');
+        const artist = encodeURIComponent(sessData.track?.artist || '');
+        const choreoRes = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL}/api/choreo/${sessData.trackId}?title=${title}&artist=${artist}`
+        );
         if (!choreoRes.ok) throw new Error('Choreography unavailable.');
         setChoreography(await choreoRes.json());
       } catch (err) {
