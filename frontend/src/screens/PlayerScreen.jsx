@@ -25,6 +25,7 @@ export default function PlayerScreen() {
   const [playerReady, setPlayerReady] = useState(false);
   const [showModal, setShowModal] = useState(true);
   const [score, setScore] = useState({ total: 0, combo: 0, streak: 0, multiplier: 1 });
+  const [playerScores, setPlayerScores] = useState({});
   const [lastResult, setLastResult] = useState(null);
   const [scene, setScene] = useState('backyard');
 
@@ -101,10 +102,14 @@ export default function PlayerScreen() {
       ));
     });
 
-    socket.on('input:scored', ({ result, scoreUpdate }) => {
+    socket.on('input:scored', ({ result, scoreUpdate, playerId }) => {
       setScore(scoreUpdate);
       setLastResult(result);
       setTimeout(() => setLastResult(null), 700);
+      // Update per-player score
+      if (playerId) {
+        setPlayerScores(prev => ({ ...prev, [playerId]: scoreUpdate.total }));
+      }
     });
 
     // Real-time motion from controller — update dancer pose + raw sensor data
@@ -222,16 +227,24 @@ export default function PlayerScreen() {
 
       {/* GAME SCENE — backyard with stage */}
       <div style={{ position: 'relative', width: '100%', flexShrink: 0 }}>
-        <GameScene players={players} scene={scene} />
+        <GameScene
+          players={players.map(p => ({ ...p, score: playerScores[p.id] || 0 }))}
+          scene={scene}
+        />
 
-        {/* YouTube video embedded INTO the projector screen position */}
-        <div style={{
-          position: 'absolute',
-          top: '16%', left: '33.1%',
-          width: '33.8%', height: '25.8%',
-          overflow: 'hidden',
-          opacity: 0.92,
-        }}>
+        {/* YouTube video — fullscreen if video scene, else in projector */}
+        <div style={
+          scene === 'video' ? {
+            position: 'absolute', inset: 0,
+            width: '100%', height: '100%',
+            opacity: 0.6, zIndex: 0,
+          } : {
+            position: 'absolute',
+            top: '16%', left: '33.1%',
+            width: '33.8%', height: '25.8%',
+            overflow: 'hidden', opacity: 0.92, zIndex: 1,
+          }
+        }>
           <div id="yt-player" style={{ width: '100%', height: '100%' }} />
           {!playerReady && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#050510' }}>
@@ -264,9 +277,17 @@ export default function PlayerScreen() {
           </div>
         </div>
 
-        {/* LEFT: Vertical score meter */}
-        <div style={{ position: 'absolute', left: 4, top: '30%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-          <VerticalScoreMeter score={score.total} maxScore={MAX_SCORE} color={p1Color} playerLabel="P1" />
+        {/* LEFT: Per-player vertical score meters */}
+        <div style={{ position: 'absolute', left: 4, top: '15%', pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {players.map((p, i) => (
+            <VerticalScoreMeter
+              key={p.id}
+              score={playerScores[p.id] || (i === 0 ? score.total : 0)}
+              maxScore={MAX_SCORE}
+              color={p.color || PLAYER_COLORS[i]}
+              playerLabel={`P${i + 1}`}
+            />
+          ))}
         </div>
       </div>
 

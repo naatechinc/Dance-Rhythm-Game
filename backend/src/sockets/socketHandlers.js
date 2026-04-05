@@ -100,7 +100,7 @@ function registerSocketHandlers(io) {
       sessionService.recordScoreEvent(sessionId, event);
 
       // Broadcast result to everyone in the session
-      io.to(sessionId).emit('input:scored', { result: hitResult.result, scoreUpdate: newScore });
+      io.to(sessionId).emit('input:scored', { result: hitResult.result, scoreUpdate: newScore, playerId: socket.id });
     });
 
     // ------------------------------------------------------------------

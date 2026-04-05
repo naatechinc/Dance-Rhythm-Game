@@ -1,3 +1,4 @@
+import AudioVisualizer from './AudioVisualizer';
 import React from 'react';
 
 const PLAYER_COLORS = ['#e94560', '#40c4ff', '#00e676', '#b04dff', '#ff9800', '#ff4ea3'];
@@ -18,7 +19,7 @@ const MOVE_POSES = {
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
-function Dancer({ x, y, color, move, motion, label, connected }) {
+function Dancer({ x, y, color, move, motion, label, connected, isLeader = false }) {
   const pose = MOVE_POSES[move] || MOVE_POSES.default;
   const yOff = pose.yOff || 0;
   const opacity = connected ? 1 : 0.35;
@@ -46,6 +47,11 @@ function Dancer({ x, y, color, move, motion, label, connected }) {
       </g>
       <text x="0" y="74" textAnchor="middle" fontFamily="sans-serif" fontSize="10" fill={color} fontWeight="bold">{label}</text>
       {!connected && <text x="0" y="-30" textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill="#555">waiting...</text>}
+      {isLeader && (
+        <g transform="translate(0, -36)">
+          <text x="0" y="0" textAnchor="middle" fontSize="18">👑</text>
+        </g>
+      )}
     </g>
   );
 }
@@ -211,6 +217,8 @@ const SCENES = {
   space:    { label: 'Space Station',   component: SpaceStationScene },
   jungle:   { label: 'Jungle Temple',   component: JungleScene },
   arcade:   { label: 'Retro Arcade',    component: ArcadeScene },
+  video:    { label: 'Full Screen Video', component: null },
+  visualizer: { label: 'Audio Visualizer', component: null },
 };
 
 export { PLAYER_COLORS, SCENES };
@@ -220,7 +228,58 @@ export default function GameScene({ players = [], scene = 'backyard' }) {
   const stageLeft = 185, stageRight = 775, stageY = 328;
   const spacing = activePlayers.length > 1 ? (stageRight - stageLeft) / (activePlayers.length - 1) : 0;
 
+  // Find leader — player with highest score
+  const maxScore = Math.max(...activePlayers.map(p => p.score || 0), 0);
+  const leaderId = maxScore > 0 ? activePlayers.find(p => (p.score || 0) === maxScore)?.id : null;
+
   const SceneBackground = SCENES[scene]?.component || BackyardSunset;
+
+  // Visualizer scene
+  if (scene === 'visualizer') {
+    return (
+      <div style={{ width: '100%', position: 'relative', userSelect: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+          <AudioVisualizer active={true} width={960} height={480} color="#00ff88" />
+        </div>
+        <svg width="100%" viewBox="0 0 960 480" xmlns="http://www.w3.org/2000/svg"
+          style={{ display: 'block', position: 'relative', zIndex: 1 }}>
+          <rect x="0" y="0" width="960" height="480" fill="transparent"/>
+          <rect x="155" y="353" width="650" height="45" fill="#0a1a0a" rx="4" opacity="0.8"/>
+          <rect x="155" y="348" width="650" height="14" fill="#0d240d" rx="3" opacity="0.8"/>
+          {activePlayers.map((p, i) => {
+            const x = activePlayers.length === 1 ? 480 : stageLeft + i * spacing;
+            return <Dancer key={p.id} x={x} y={stageY} color={p.color || PLAYER_COLORS[i]}
+              move={p.move || 'default'} motion={p.motion}
+              label={`P${i+1}`} connected={p.connected}
+              isLeader={leaderId && p.id === leaderId}/>;
+          })}
+        </svg>
+        <div style={{ width: '100%', paddingBottom: '50%' }}/>
+      </div>
+    );
+  }
+
+  // Video scene: no background SVG — YouTube video fills the screen
+  if (scene === 'video') {
+    return (
+      <div style={{ width: '100%', position: 'relative', userSelect: 'none' }}>
+        <svg width="100%" viewBox="0 0 960 480" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', position: 'absolute', top: 0, left: 0, zIndex: 1 }}>
+          {/* Dancers only — no background, video shows through */}
+          <rect x="0" y="0" width="960" height="480" fill="transparent"/>
+          {activePlayers.map((p, i) => {
+            const x = activePlayers.length === 1 ? 480 : stageLeft + i * spacing;
+            return (
+              <Dancer key={p.id} x={x} y={stageY} color={p.color || PLAYER_COLORS[i]}
+                move={p.move || 'default'} motion={p.motion}
+                label={`P${i + 1}`} connected={p.connected}
+                isLeader={leaderId && p.id === leaderId}/>
+            );
+          })}
+        </svg>
+        <div style={{ width: '100%', paddingBottom: '50%' }}/>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', position: 'relative', userSelect: 'none' }}>
@@ -263,6 +322,7 @@ export default function GameScene({ players = [], scene = 'backyard' }) {
                 motion={p.motion}
                 label={`P${i + 1}`}
                 connected={p.connected}
+                isLeader={leaderId && p.id === leaderId}
               />
             );
           })

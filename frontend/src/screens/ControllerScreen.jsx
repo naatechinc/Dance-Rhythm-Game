@@ -85,7 +85,19 @@ export default function ControllerScreen() {
       startMotion();
     }
 
-    return () => socketRef.current?.disconnect();
+    // Lock viewport scrolling on phone
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      socketRef.current?.disconnect();
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.documentElement.style.overflow = '';
+    };
   }, [sessionId]);
 
   function changeScene(sceneKey) {
@@ -200,10 +212,15 @@ export default function ControllerScreen() {
 
   return (
     <div style={{
-      minHeight: '100vh', background: '#08080f',
+      height: '100vh', maxHeight: '100vh',
+      background: '#08080f',
       display: 'flex', flexDirection: 'column',
-      alignItems: 'center', padding: '1rem',
+      alignItems: 'center', padding: '0.75rem',
       fontFamily: 'sans-serif',
+      overflow: 'hidden',
+      touchAction: 'none',
+      userSelect: 'none',
+      WebkitOverflowScrolling: 'none',
     }}>
 
       {/* Status */}
