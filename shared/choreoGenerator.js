@@ -38,9 +38,16 @@ function generate(track, opts = {}) {
     startSec = 30,
     endSec = Math.min(startSec + 42, (track.durationSec ?? 240) - 5),
     seed = hashSeed(track.videoId),
+    bpm = estimateBpm(track),
   } = opts;
 
-  const config = DIFFICULTY_CONFIG[difficulty] ?? DIFFICULTY_CONFIG.intermediate;
+  // Build a config that reflects the song's actual BPM
+  const baseConfig = DIFFICULTY_CONFIG[difficulty] ?? DIFFICULTY_CONFIG.intermediate;
+  const bpmInterval = bpm > 0 ? (60 / bpm) * 2 : baseConfig.intervalSec;
+  const config = {
+    ...baseConfig,
+    intervalSec: Math.max(0.8, Math.min(3.5, bpmInterval)),
+  };
   const allowedMoves = getMoveIdsForDifficulty(difficulty);
 
   // Validate inputs
@@ -190,6 +197,21 @@ function hashSeed(str = '') {
 
 function round2(n) {
   return Math.round(n * 10) / 10;
+}
+
+/**
+ * Estimate BPM from track duration.
+ * Heuristic: shorter songs tend to be faster.
+ * Falls back to 120 BPM if unknown.
+ */
+function estimateBpm(track) {
+  if (track.bpm && track.bpm > 0) return track.bpm;
+  const dur = track.durationSec || 210;
+  if (dur < 150) return 140;
+  if (dur < 200) return 128;
+  if (dur < 250) return 120;
+  if (dur < 300) return 110;
+  return 100;
 }
 
 module.exports = { generate };

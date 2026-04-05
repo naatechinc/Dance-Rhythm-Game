@@ -45,8 +45,11 @@ function registerSocketHandlers(io) {
       const { sessionId } = socket.data;
       if (!sessionId) return;
 
-      // Forward motion to game client(s) in the same session room
-      socket.to(sessionId).emit('controller:motion', payload);
+      // Forward motion to game client with playerId so the right dancer updates
+      socket.to(sessionId).emit('controller:motion', {
+        ...payload,
+        playerId: socket.id,
+      });
     });
 
     // ------------------------------------------------------------------

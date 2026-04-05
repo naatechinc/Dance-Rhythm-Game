@@ -95,11 +95,18 @@ export default function PlayerScreen() {
       setTimeout(() => setLastResult(null), 700);
     });
 
-    // When a controller moves, update that player's pose
+    // When a controller moves, update that player's pose then reset to default
     socket.on('controller:motion', (payload) => {
+      if (!payload.playerId || !payload.moveType) return;
       setPlayers(prev => prev.map(p =>
-        p.id === payload.playerId ? { ...p, move: payload.moveType || 'default' } : p
+        p.id === payload.playerId ? { ...p, move: payload.moveType } : p
       ));
+      // Reset back to default pose after 1.2 seconds
+      setTimeout(() => {
+        setPlayers(prev => prev.map(p =>
+          p.id === payload.playerId ? { ...p, move: 'default' } : p
+        ));
+      }, 1200);
     });
 
     return () => { socket.disconnect(); };

@@ -31,11 +31,11 @@ const MOVE_POSES = {
   default:    { bodyRot: 0,   lArm: [-20, 20],  rArm: [20, 20],  lLeg: [-8, 55],  rLeg: [8, 55]  },
 };
 
-function Dancer({ x, y, color, move, label, connected }) {
+function Dancer({ x, y, color, rightHandColor, move, label, connected }) {
   const pose = MOVE_POSES[move] || MOVE_POSES.default;
   const yOff = pose.yOff || 0;
-  const scale = 1;
   const opacity = connected ? 1 : 0.35;
+  const rhColor = rightHandColor || color;
 
   return (
     <g transform={`translate(${x}, ${y + yOff})`} opacity={opacity} style={{ transition: 'all 0.15s ease' }}>
@@ -44,7 +44,7 @@ function Dancer({ x, y, color, move, label, connected }) {
         <path d="M-12,30 Q0,52 12,30 Q16,8 0,-4 Q-16,8 -12,30Z" fill={color}/>
         <circle cx="0" cy="-14" r="13" fill={color}/>
         <line x1="-12" y1="14" x2={pose.lArm[0]} y2={pose.lArm[1]} stroke={color} strokeWidth="6" strokeLinecap="round"/>
-        <line x1="12" y1="14" x2={pose.rArm[0]} y2={pose.rArm[1]} stroke="#ffd166" strokeWidth="7" strokeLinecap="round"/>
+        <line x1="12" y1="14" x2={pose.rArm[0]} y2={pose.rArm[1]} stroke={rhColor} strokeWidth="8" strokeLinecap="round"/>
         <line x1="-5" y1="30" x2={pose.lLeg[0]} y2={pose.lLeg[1]} stroke={color} strokeWidth="6" strokeLinecap="round"/>
         <line x1="5" y1="30" x2={pose.rLeg[0]} y2={pose.rLeg[1]} stroke={color} strokeWidth="6" strokeLinecap="round"/>
       </g>
@@ -176,6 +176,7 @@ export default function GameScene({ players = [], videoElementId = 'yt-player' }
                 x={x}
                 y={stageY}
                 color={p.color || PLAYER_COLORS[i]}
+                rightHandColor={p.color || PLAYER_COLORS[i]}
                 move={p.move || 'default'}
                 label={`P${i + 1}`}
                 connected={p.connected}
@@ -187,7 +188,7 @@ export default function GameScene({ players = [], videoElementId = 'yt-player' }
         {/* LEGEND */}
         <rect x="14" y="14" width="152" height="28" fill="#000" opacity="0.55" rx="4"/>
         <line x1="22" y1="28" x2="36" y2="28" stroke="#ffd166" strokeWidth="4" strokeLinecap="round"/>
-        <text x="42" y="33" fontFamily="sans-serif" fontSize="10" fill="#ffd166">= controller hand</text>
+        <text x="42" y="33" fontFamily="sans-serif" fontSize="10" fill="#ffd166">= player color right hand</text>
       </svg>
     </div>
   );
