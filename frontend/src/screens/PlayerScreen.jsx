@@ -220,7 +220,7 @@ export default function PlayerScreen() {
   const p1Color = PLAYER_COLORS[0];
 
   return (
-    <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: '#000', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100vh', background: '#000', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* QR Controller Modal */}
       {showModal && <ControllerModal sessionId={sessionId} onDismiss={handleModalDismiss} />}
@@ -230,6 +230,7 @@ export default function PlayerScreen() {
         <GameScene
           players={players.map(p => ({ ...p, score: playerScores[p.id] || 0 }))}
           scene={scene}
+          bpm={choreography?.bpm || 120}
         />
 
         {/* YouTube video — fullscreen if video scene, else in projector */}
@@ -277,18 +278,31 @@ export default function PlayerScreen() {
           </div>
         </div>
 
-        {/* LEFT: Per-player vertical score meters */}
-        <div style={{ position: 'absolute', left: 4, top: '15%', pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {players.map((p, i) => (
+        {/* P1 score — LEFT side */}
+        {players[0] && (
+          <div style={{ position: 'absolute', left: 4, top: '15%', pointerEvents: 'none' }}>
             <VerticalScoreMeter
-              key={p.id}
-              score={playerScores[p.id] || (i === 0 ? score.total : 0)}
+              score={playerScores[players[0].id] || score.total}
               maxScore={MAX_SCORE}
-              color={p.color || PLAYER_COLORS[i]}
-              playerLabel={`P${i + 1}`}
+              color={players[0].color || PLAYER_COLORS[0]}
+              playerLabel="P1"
             />
-          ))}
-        </div>
+          </div>
+        )}
+        {/* P2+ scores — RIGHT side stacked */}
+        {players.slice(1).length > 0 && (
+          <div style={{ position: 'absolute', right: 4, top: '15%', pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {players.slice(1).map((p, i) => (
+              <VerticalScoreMeter
+                key={p.id}
+                score={playerScores[p.id] || 0}
+                maxScore={MAX_SCORE}
+                color={p.color || PLAYER_COLORS[i + 1]}
+                playerLabel={`P${i + 2}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* MOVE FIGURE ROW — 3 stick figures showing current + next 2 moves */}

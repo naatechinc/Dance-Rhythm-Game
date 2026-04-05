@@ -1,177 +1,194 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 /**
  * AudioVisualizer
- * Real-time audio visualization using Web Audio API.
- * Analyzes the YouTube video's audio and renders a Freebeat-style
- * waveform/frequency visualization as a canvas background.
- *
- * Props:
- *   active: bool — whether to try connecting to audio
- *   width: number
- *   height: number
- *   color: string — primary glow color
+ * Freebeat-style audio visualization.
+ * Uses Web Audio API if available, otherwise simulates with
+ * realistic beat-synced animation using BPM timing.
  */
-export default function AudioVisualizer({ active = false, width = 960, height = 480, color = '#00ff88' }) {
+export default function AudioVisualizer({ active = false, width = 960, height = 480, color = '#00ff88', bpm = 120 }) {
   const canvasRef = useRef(null);
   const animRef = useRef(null);
-  const analyserRef = useRef(null);
-  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     if (!active) return;
-    tryConnect();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Try to tap real audio from YouTube video element
+    let analyser = null;
+    let audioCtx = null;
+
+    const videoEls = document.querySelectorAll('video, audio');
+    if (videoEls.length > 0) {
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaElementSource(videoEls[0]);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.75;
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      } catch (e) {
+        analyser = null;
+      }
+    }
+
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width;
+    const H = canvas.height;
+    const beatMs = (60 / bpm) * 1000;
+    let startTime = performance.now();
+
+    // Parse color
+    let r = 0, g = 255, b = 136;
+    if (color === '#ff0066') { r = 255; g = 0; b = 102; }
+    else if (color === '#40c4ff') { r = 64; g = 196; b = 255; }
+
+    function getBeatPhase(now) {
+      const elapsed = now - startTime;
+      return (elapsed % beatMs) / beatMs; // 0-1 within beat
+    }
+
+    function getBeatEnergy(phase) {
+      // Sharp attack (0-0.08), quick decay (0.08-0.4), long tail (0.4-1)
+      if (phase < 0.08) return 1 - (phase / 0.08) * 0.3; // 1.0 → 0.7
+      if (phase < 0.4)  return 0.7 - ((phase - 0.08) / 0.32) * 0.5; // 0.7 → 0.2
+      return 0.2 - ((phase - 0.4) / 0.6) * 0.15; // 0.2 → 0.05
+    }
+
+    function drawFrame() {
+      animRef.current = requestAnimationFrame(drawFrame);
+      const now = performance.now();
+      const beatPhase = getBeatPhase(now);
+      const beatEnergy = getBeatEnergy(beatPhase);
+      const t = now / 1000;
+
+      let freqData = null;
+      let bufLen = 256;
+
+      if (analyser) {
+        bufLen = analyser.frequencyBinCount;
+        freqData = new Uint8Array(bufLen);
+        analyser.getByteFrequencyData(freqData);
+      }
+
+      // Clear with motion blur effect
+      ctx.fillStyle = `rgba(2, 8, 22, 0.82)`;
+      ctx.fillRect(0, 0, W, H);
+
+      // Grid lines (subtle)
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.05)`;
+      ctx.lineWidth = 0.5;
+      for (let gx = 0; gx < W; gx += 60) {
+        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+      }
+      for (let gy = 0; gy < H; gy += 50) {
+        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+      }
+
+      const numBars = 64;
+      const barW = W / numBars - 1;
+      const centerY = H * 0.62;
+
+      for (let i = 0; i < numBars; i++) {
+        const freq = i / numBars;
+
+        let val;
+        if (freqData) {
+          // Real audio data
+          const idx = Math.floor(freq * bufLen * 0.7);
+          val = freqData[idx] / 255;
+        } else {
+          // Simulated — bass heavy, beat-synced
+          const isBass = i < 8;
+          const isMid = i >= 8 && i < 24;
+          const isHigh = i >= 24;
+
+          const bassVal = isBass ? beatEnergy * (0.7 + Math.sin(t * 2.1 + i) * 0.3) : 0;
+          const midVal = isMid ? (beatEnergy * 0.6 + Math.sin(t * 3.7 + i * 0.5) * 0.25) * (0.5 + beatEnergy * 0.5) : 0;
+          const highVal = isHigh ? Math.max(0, Math.sin(t * 5.3 + i * 0.3) * 0.3 * beatEnergy) : 0;
+
+          val = Math.max(0, Math.min(1, bassVal + midVal + highVal));
+        }
+
+        const barH = val * H * 0.5;
+        const x = i * (barW + 1);
+        const alpha = 0.25 + val * 0.75;
+
+        // Main bar
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.7})`;
+        ctx.fillRect(x, centerY - barH, barW, barH);
+
+        // Mirror below (shorter)
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.2})`;
+        ctx.fillRect(x, centerY, barW, barH * 0.35);
+
+        // Bright cap
+        if (val > 0.4) {
+          ctx.fillStyle = `rgba(${Math.min(255,r+120)}, ${Math.min(255,g+80)}, ${Math.min(255,b+60)}, ${val})`;
+          ctx.fillRect(x, centerY - barH - 2, barW, 2);
+        }
+      }
+
+      // Main waveform line
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.95)`;
+      ctx.lineWidth = 2.5;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.9)`;
+
+      for (let i = 0; i <= numBars; i++) {
+        const freq = i / numBars;
+        let val;
+        if (freqData) {
+          const idx = Math.floor(freq * bufLen * 0.7);
+          val = freqData[idx] / 255;
+        } else {
+          val = Math.max(0, Math.sin(t * 4 + freq * Math.PI * 4) * 0.4 * beatEnergy
+            + Math.sin(t * 7 + freq * Math.PI * 8) * 0.2 * beatEnergy
+            + beatEnergy * 0.15 * Math.sin(freq * Math.PI));
+        }
+        const x = freq * W;
+        const y = centerY - val * H * 0.5;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Secondary wave (offset phase)
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.3)`;
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i <= numBars; i++) {
+        const freq = i / numBars;
+        const val = Math.sin(t * 3 + freq * Math.PI * 6 + Math.PI) * 0.2 * beatEnergy;
+        const x = freq * W;
+        const y = centerY - val * H * 0.3;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Center line
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.12)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, centerY); ctx.lineTo(W, centerY); ctx.stroke();
+
+      // Beat flash on kick
+      if (beatPhase < 0.12) {
+        const flashAlpha = (1 - beatPhase / 0.12) * 0.08;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${flashAlpha})`;
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
+
+    drawFrame();
+
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
+      if (audioCtx) audioCtx.close().catch(() => {});
     };
-  }, [active]);
-
-  function tryConnect() {
-    // Try to tap into the YouTube iframe's audio
-    // This uses a shared AudioContext with a MediaElementSource
-    try {
-      const iframes = document.querySelectorAll('iframe');
-      let videoEl = null;
-
-      // Try to find any audio/video element
-      const allMedia = document.querySelectorAll('audio, video');
-      if (allMedia.length > 0) videoEl = allMedia[0];
-
-      if (videoEl) {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const source = ctx.createMediaElementSource(videoEl);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.8;
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-        analyserRef.current = analyser;
-        setConnected(true);
-        draw();
-        return;
-      }
-    } catch (e) {
-      // Cross-origin YouTube iframe blocks direct audio access — use simulation
-    }
-
-    // Fallback: simulate audio visualization with animated sine waves
-    setConnected(false);
-    drawSimulated();
-  }
-
-  function draw() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const analyser = analyserRef.current;
-    if (!analyser) return;
-
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    function frame() {
-      animRef.current = requestAnimationFrame(frame);
-      analyser.getByteFrequencyData(dataArray);
-      renderFrame(ctx, dataArray, bufferLength, canvas.width, canvas.height);
-    }
-    frame();
-  }
-
-  function drawSimulated() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let t = 0;
-
-    function frame() {
-      animRef.current = requestAnimationFrame(frame);
-      t += 0.03;
-
-      // Simulate frequency data with animated sine waves
-      const bufferLength = 128;
-      const dataArray = new Uint8Array(bufferLength);
-      for (let i = 0; i < bufferLength; i++) {
-        const freq = i / bufferLength;
-        // Bass frequencies (low i) pulse strong
-        const bass = i < 10 ? Math.sin(t * 2.5) * 0.5 + 0.5 : 0;
-        const mid = Math.sin(t * 1.5 + i * 0.3) * 0.4 + 0.4;
-        const high = i > 80 ? Math.sin(t * 3 + i * 0.1) * 0.2 + 0.2 : 0;
-        dataArray[i] = Math.min(255, (bass * 200 + mid * 120 + high * 80) * (1 - freq * 0.5));
-      }
-      renderFrame(ctx, dataArray, bufferLength, canvas.width, canvas.height);
-    }
-    frame();
-  }
-
-  function renderFrame(ctx, dataArray, bufferLength, W, H) {
-    // Clear
-    ctx.fillStyle = 'rgba(4, 4, 20, 0.85)';
-    ctx.fillRect(0, 0, W, H);
-
-    const barWidth = (W / bufferLength) * 2.2;
-    const centerY = H * 0.65;
-
-    // Parse color to RGB for glow effects
-    const r = color === '#00ff88' ? 0 : color === '#ff0066' ? 255 : 64;
-    const g = color === '#00ff88' ? 255 : color === '#ff0066' ? 0 : 196;
-    const b = color === '#00ff88' ? 136 : color === '#ff0066' ? 102 : 255;
-
-    // Draw frequency bars (mirrored, center)
-    for (let i = 0; i < bufferLength; i++) {
-      const val = dataArray[i] / 255;
-      const barH = val * H * 0.45;
-      const x = i * (barWidth + 1);
-      const alpha = 0.3 + val * 0.7;
-
-      // Gradient bar - teal/green glow
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.6})`;
-      ctx.fillRect(x, centerY - barH, barWidth, barH);
-
-      // Mirrored below
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.25})`;
-      ctx.fillRect(x, centerY, barWidth, barH * 0.4);
-
-      // Bright cap on top
-      if (val > 0.5) {
-        ctx.fillStyle = `rgba(${Math.min(255, r + 100)}, ${Math.min(255, g + 100)}, ${Math.min(255, b + 100)}, ${val})`;
-        ctx.fillRect(x, centerY - barH - 2, barWidth, 2);
-      }
-    }
-
-    // Draw waveform line on top
-    ctx.beginPath();
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.9)`;
-    ctx.lineWidth = 2;
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
-
-    for (let i = 0; i < bufferLength; i++) {
-      const val = dataArray[i] / 255;
-      const x = i * (barWidth + 1) + barWidth / 2;
-      const y = centerY - val * H * 0.45;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // Center reflection line
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.15)`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, centerY);
-    ctx.lineTo(W, centerY);
-    ctx.stroke();
-
-    // Horizontal scan line effect
-    const scanY = (Date.now() % 4000) / 4000 * H;
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.06)`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, scanY);
-    ctx.lineTo(W, scanY);
-    ctx.stroke();
-  }
+  }, [active, bpm, color]);
 
   return (
     <canvas

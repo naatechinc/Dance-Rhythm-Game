@@ -22,35 +22,69 @@ function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 function Dancer({ x, y, color, move, motion, label, connected, isLeader = false }) {
   const pose = MOVE_POSES[move] || MOVE_POSES.default;
   const yOff = pose.yOff || 0;
-  const opacity = connected ? 1 : 0.35;
+  const opacity = connected ? 1 : 0.4;
   const m = motion || { ax:0, ay:0, az:0, gamma:0 };
-  const lArmX = pose.lArm[0] + clamp(-m.gamma*0.18, -10, 10);
-  const lArmY = pose.lArm[1] + clamp(-m.ay*0.4, -8, 8);
-  const rArmX = pose.rArm[0] + clamp(m.gamma*0.18, -10, 10);
-  const rArmY = pose.rArm[1] + clamp(-m.ay*0.4, -8, 8);
-  const lLegX = pose.lLeg[0] + clamp(-m.ax*0.35, -8, 8);
-  const rLegX = pose.rLeg[0] + clamp(m.ax*0.35, -8, 8);
-  const tilt = pose.bodyRot + clamp((m.gamma||0)*0.12, -8, 8);
-  const bob = clamp(-(m.az||0)*0.25, -4, 4);
+
+  // Live motion blending
+  const lArmX = pose.lArm[0] + clamp(-m.gamma*0.15, -10, 10);
+  const lArmY = pose.lArm[1] + clamp(-m.ay*0.35, -8, 8);
+  const rArmX = pose.rArm[0] + clamp(m.gamma*0.15, -10, 10);
+  const rArmY = pose.rArm[1] + clamp(-m.ay*0.35, -8, 8);
+  const lLegX = pose.lLeg[0] + clamp(-m.ax*0.3, -8, 8);
+  const rLegX = pose.rLeg[0] + clamp(m.ax*0.3, -8, 8);
+  const tilt = pose.bodyRot + clamp((m.gamma||0)*0.1, -8, 8);
+  const bob = clamp(-(m.az||0)*0.2, -4, 4);
+
+  // Glow color
+  const glow = color;
 
   return (
     <g transform={`translate(${x},${y+yOff+bob})`} opacity={opacity}>
-      <ellipse cx="0" cy="58" rx="16" ry="5" fill="#000" opacity="0.3"/>
+      {/* Shadow */}
+      <ellipse cx="0" cy="62" rx="22" ry="6" fill="#000" opacity="0.35"/>
+
       <g transform={`rotate(${tilt})`}>
-        <path d="M-13,30 Q0,54 13,30 Q17,6 0,-5 Q-17,6 -13,30Z" fill={color}/>
-        <circle cx="0" cy="-16" r="14" fill={color}/>
-        <line x1="-13" y1="14" x2={lArmX} y2={lArmY} stroke={color} strokeWidth="7" strokeLinecap="round"/>
-        <line x1="13" y1="14" x2={rArmX} y2={rArmY} stroke={color} strokeWidth="8" strokeLinecap="round"/>
-        <circle cx={rArmX} cy={rArmY} r="5" fill={color} stroke="#fff" strokeWidth="2" opacity="0.9"/>
-        <line x1="-5" y1="30" x2={lLegX} y2={pose.lLeg[1]} stroke={color} strokeWidth="7" strokeLinecap="round"/>
-        <line x1="5" y1="30" x2={rLegX} y2={pose.rLeg[1]} stroke={color} strokeWidth="7" strokeLinecap="round"/>
+        {/* UPGRADED: Just Dance style full body silhouette */}
+
+        {/* Left leg - thicker, more human shaped */}
+        <path d={`M-4,32 L${lLegX-6},62 L${lLegX-1},62 L3,32Z`} fill={glow} opacity="0.95"/>
+        {/* Right leg */}
+        <path d={`M4,32 L${rLegX-1},62 L${rLegX+5},62 L9,32Z`} fill={glow} opacity="0.95"/>
+
+        {/* Torso - wider, more human */}
+        <path d="M-16,2 Q-18,18 -14,32 L14,32 Q18,18 16,2 Q8,-4 0,-6 Q-8,-4 -16,2Z" fill={glow}/>
+
+        {/* Hips */}
+        <ellipse cx="0" cy="32" rx="15" ry="5" fill={glow}/>
+
+        {/* Left arm - thick silhouette */}
+        <path d={`M-16,8 Q${lArmX-4},${lArmY-4} ${lArmX},${lArmY} Q${lArmX+3},${lArmY+4} ${lArmX-2},${lArmY+6} Q${-14},${14} -16,8Z`} fill={glow} opacity="0.9"/>
+        {/* Left hand */}
+        <circle cx={lArmX} cy={lArmY+2} r="5" fill={glow}/>
+
+        {/* Right arm */}
+        <path d={`M16,8 Q${rArmX+4},${rArmY-4} ${rArmX},${rArmY} Q${rArmX-3},${rArmY+4} ${rArmX+2},${rArmY+6} Q${14},${14} 16,8Z`} fill={glow} opacity="0.9"/>
+        {/* Right hand - WHITE CIRCLE = player indicator */}
+        <circle cx={rArmX} cy={rArmY+2} r="6" fill={glow} stroke="#fff" strokeWidth="2.5"/>
+
+        {/* Head - round, nice */}
+        <circle cx="0" cy="-18" r="16" fill={glow}/>
+        {/* Neck */}
+        <rect x="-5" y="-4" width="10" height="8" fill={glow}/>
+
+        {/* Neon outline glow effect */}
+        <circle cx="0" cy="-18" r="17" fill="none" stroke={glow} strokeWidth="1" opacity="0.4"/>
       </g>
-      <text x="0" y="74" textAnchor="middle" fontFamily="sans-serif" fontSize="10" fill={color} fontWeight="bold">{label}</text>
-      {!connected && <text x="0" y="-30" textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill="#555">waiting...</text>}
+
+      {/* Label */}
+      <text x="0" y="76" textAnchor="middle" fontFamily="sans-serif" fontSize="11" fill={color} fontWeight="bold"
+        style={{ filter: `drop-shadow(0 0 4px ${color})` }}>{label}</text>
+
+      {!connected && <text x="0" y="-36" textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill="#444">waiting...</text>}
+
+      {/* Crown for leader */}
       {isLeader && (
-        <g transform="translate(0, -36)">
-          <text x="0" y="0" textAnchor="middle" fontSize="18">👑</text>
-        </g>
+        <text x="0" y="-38" textAnchor="middle" fontSize="20" style={{ filter: 'drop-shadow(0 0 6px #ffd600)' }}>👑</text>
       )}
     </g>
   );
@@ -223,7 +257,7 @@ const SCENES = {
 
 export { PLAYER_COLORS, SCENES };
 
-export default function GameScene({ players = [], scene = 'backyard' }) {
+export default function GameScene({ players = [], scene = 'backyard', bpm = 120 }) {
   const activePlayers = players.slice(0, 6);
   const stageLeft = 185, stageRight = 775, stageY = 328;
   const spacing = activePlayers.length > 1 ? (stageRight - stageLeft) / (activePlayers.length - 1) : 0;
@@ -239,7 +273,7 @@ export default function GameScene({ players = [], scene = 'backyard' }) {
     return (
       <div style={{ width: '100%', position: 'relative', userSelect: 'none' }}>
         <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-          <AudioVisualizer active={true} width={960} height={480} color="#00ff88" />
+          <AudioVisualizer active={true} width={960} height={480} color="#00ff88" bpm={bpm} />
         </div>
         <svg width="100%" viewBox="0 0 960 480" xmlns="http://www.w3.org/2000/svg"
           style={{ display: 'block', position: 'relative', zIndex: 1 }}>
@@ -288,9 +322,9 @@ export default function GameScene({ players = [], scene = 'backyard' }) {
         <SceneBackground />
 
         {/* STAGE PLATFORM — consistent across all scenes */}
-        <rect x="155" y="353" width="650" height="45" fill="#4a2e10" rx="4" opacity="0.95"/>
-        <rect x="155" y="348" width="650" height="14" fill="#6b4420" rx="3" opacity="0.95"/>
-        <rect x="155" y="348" width="650" height="5" fill="#8a5a2a" opacity="0.5"/>
+        <rect x="155" y="353" width="650" height="45" fill="#2a1a08" rx="4" opacity="0.98"/>
+        <rect x="155" y="348" width="650" height="14" fill="#3a2010" rx="3" opacity="0.98"/>
+        <rect x="155" y="348" width="650" height="5" fill="#6a4020" opacity="0.7"/>
         {[170,370,570,770].map(x => <rect key={x} x={x} y="396" width="18" height="28" fill="#3a2208"/>)}
 
         {/* PROJECTOR SCREEN */}
