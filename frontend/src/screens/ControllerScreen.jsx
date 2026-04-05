@@ -212,7 +212,7 @@ export default function ControllerScreen() {
 
   return (
     <div style={{
-      height: '100vh', maxHeight: '100vh',
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       background: '#08080f',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', padding: '0.75rem',
@@ -220,7 +220,8 @@ export default function ControllerScreen() {
       overflow: 'hidden',
       touchAction: 'none',
       userSelect: 'none',
-      WebkitOverflowScrolling: 'none',
+      overscrollBehavior: 'none',
+      WebkitOverflowScrolling: 'touch',
     }}>
 
       {/* Status */}
